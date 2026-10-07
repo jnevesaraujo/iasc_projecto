@@ -19,26 +19,59 @@ from CamadaEntrada import CamadaEntrada
 # __init__(forma, phi, pesos=None)
 #   forma — lista de inteiros: cada elemento é o nº de neuronios da camada.
 #            ex: [2, 2, 1] → entrada(2), escondida(2), saída(1).
-#   phi   — função de activação das camadas densas.
+#   phi   — instância de FuncaoActivacao, partilhada por todas as camadas densas.
 #   pesos — opcional: lista de (W, b) por camada densa para substituir os
 #            pesos aleatórios. Usado para replicar os exemplos dos slides.
 #
 # propagar(x)
 #   Executa o forward pass: y é inicializado com x e transformado sequencialmente
 #   por cada camada. A saída final y^N é a resposta da rede para a entrada x.
+#   Cada camada guarda self.y após propagar — necessário para retropropagar.
 #
 # prever(X)
 #   Aplica propagar(x) a cada amostra x do conjunto X (inferência em lote).
 #   Retorna Y — lista de respostas correspondentes.
-# 
-# definir_pesos(pesos) 
-#   Método auxiliar de validação e testes: 
-#   Permite substituir os pesos e pendores gerados aleatoriamente por matrizes 
-#   e vetores de pesos (W, b), fornecidos manualmente para cada camada densa.
+#
+# delta_saida(yN, y)
+#   Calcula o vector de erro de saída da rede: delta^N = y^N - y.
+#   É o ponto de partida da retropropagação — mede o desvio entre o que
+#   a rede produziu e o que deveria ter produzido.
+#
+# retropropagar(deltaN, alpha)
+#   Propaga o erro da camada de saída para a camada de entrada (backward pass),
+#   actualizando os pesos e pendores de cada camada densa pela regra delta.
+#   Para cada camada n (de N até 2):
+#     - consulta y^(n-1) guardado na camada anterior (necessário para adaptar)
+#     - calcula delta^(n-1) pela regra da cadeia: soma ponderada dos erros
+#       da camada n, ponderada pelos pesos e derivadas dos seus neuronios
+#     - chama adaptar na camada n para actualizar os seus pesos
+#     - passa delta^(n-1) para a iteração seguinte
+#   A camada de entrada (n=1) não tem pesos — o ciclo termina em n=2.
+#
+# adaptar(x, y, alpha)
+#   Executa um passo completo de aprendizagem para um par (x, y):
+#     1. propaga x para obter y^N
+#     2. calcula delta^N = delta_saida(y^N, y)
+#     3. retropropaga o erro e actualiza os pesos
+#     4. devolve o erro quadrático médio epsilon = (1/K) * sum(delta_k^N²)
+#   epsilon mede a qualidade da resposta da rede para esta amostra.
+#
+# treinar(X, Y, nepocas, epsilon_max, alpha)
+#   Executa o ciclo de treino supervisionado por épocas:
+#   cada época percorre todos os pares (x, y) e chama adaptar.
+#   O erro da época é o máximo dos erros individuais (critério de paragem
+#   conservador — garante que nenhuma amostra fica mal classificada).
+#   Para antecipadamente se epsilon <= epsilon_max (convergência).
+#
+# definir_pesos(pesos)
+#   Método auxiliar de validação e testes:
+#   Permite substituir os pesos e pendores gerados aleatoriamente por matrizes
+#   e vectores de pesos (W, b), fornecidos manualmente para cada camada densa.
 #
 # Fontes:
 #   MORGADO, Luis; Redes Neuronais Artificiais - Parte 1.pdf, ISEL 2026
 #   MORGADO, Luis; Redes Neuronais Artificiais - Parte 2.pdf, ISEL 2026
+#   MORGADO, Luis; Redes Neuronais Artificiais - Parte 3.pdf, ISEL 2026
 ###################################################################################
 
 class RedeNeuronal:
@@ -101,49 +134,42 @@ class RedeNeuronal:
         for camada in self.camadas:
             y = camada.propagar(y)
         return y
-         
-    # Apenas para efeitos de teste, para definir pesos e pendor interno da rede
-    def definir_pesos(self, pesos):
-        """
-        pesos: lista de (W, b) por camada densa, por ordem
-        """
-        camadas_densas = [c for c in self.camadas if isinstance(c, CamadaDensa)]
-        for camada, (W, b) in zip(camadas_densas, pesos):
-            for neuronio, w_linha, bi in zip(camada.neuronios, W, b):
-                neuronio.w = w_linha
-                neuronio.b = bi
     
-    ## CORRIGIR COMENTARIOS DE FUNÇÕES DE ADAPTAR, RETROPROPAGAR E TREINAR, PARA ESTAR EM CONFORMIDADE COM O QUE ESTÁ IMPLEMENTADO
     def delta_saida(self, yN, y):
         """
-        1. delta_saida(y^N, y):
-            2. return [y_k^N - y_k for k = 1 to |y|]
-
-        yN — vector de saída gerado pela rede
-        y  — vector de treino de saída (alvo)
+        𝒚 Vector de treino de saída
+        𝒚^𝑁 Vector de saída gerado pela rede
+        𝒚 Dimensão do vector de treino de saída
+        
+        1. delta_saída 𝒚^𝑁, 𝒚 :
+            2. return [ 𝑦𝑘^𝑁 − 𝑦𝑘 for 𝑘 = 1 𝑡𝑜 𝒚 ]
         """
         return [ykN - yk for ykN, yk in zip(yN, y)]
 
     def retropropagar(self, deltaN, alpha):
         """
-        1. retropropagar(delta^N, alpha):
-            2. delta^n = delta^N
-            3. for n = N to 2 step -1:
-                4. y^(n-1) = camadas[n-1].y
-                5. delta^(n-1) = [sum(neur[j].w[i] * delta_j * neur[j].y' for j) for i]
-                6. camadas[n].adaptar(delta^n, y^(n-1), alpha)
-                7. delta^n = delta^(n-1)
-
-        deltaN — vector de variação de erro de saída da rede
-        alpha  — taxa de aprendizagem
+        𝜹^𝑁 Vector de variação de erro de saída da rede
+        𝜹^𝑛 Vector de variação de erro de saída para cada camada n
+        𝛿𝑗 Componente j do vector de variação de erro de saída para cada camada
+        𝛼 Taxa de aprendizagem
+        
+        1. retropropagar(𝜹^𝑁, 𝛼):
+            2. 𝜹^𝑛 = 𝜹^𝑁
+            3. for 𝑛 = 𝑁 to 2 step − 1:             Camada de entrada apenas mantém entradas
+                4. 𝒚^𝑛−1 = 𝑐𝑎𝑚𝑎𝑑𝑎𝑠 [𝑛 − 1]. 𝒚
+                5. 𝑑^𝑛−1 = 𝑐𝑎𝑚𝑎𝑑𝑎𝑠 [𝑛 − 1]. 𝑑𝑠       Dimensão da camada n - 1
+                6. 𝑑^𝑛 = 𝑐𝑎𝑚𝑎𝑑𝑎𝑠 [𝑛]. 𝑑𝑠             Dimensão da camada n
+                7. 𝑛𝑒𝑢𝑟𝑛 = 𝑐𝑎𝑚𝑎𝑑𝑎𝑠 [𝑛]. 𝑛𝑒𝑢𝑟𝑜𝑛𝑖𝑜𝑠     Neurónios da camada n
+                8. 𝜹^𝑛−1 = [σ𝑗=1 𝑑^𝑛 𝑛𝑒𝑢𝑟𝑛 𝑗 . 𝑤𝑖 ∗ 𝛿𝑗^𝑛 ∗ 𝑛𝑒𝑢𝑟𝑛 𝑗 . 𝑦′ for 𝑖 = 1 to 𝑑^𝑛−1]
+                9. 𝑐𝑎𝑚𝑎𝑑𝑎𝑠[𝑛]. adaptar(𝜹^𝑛, 𝒚^𝑛−1, 𝛼)
+                10. 𝜹^𝑛 = 𝜹^𝑛−1
         """
         delta = deltaN
-        for n in range(self.N - 1, 0, -1):  # N-1 até 1 (exclui camada de entrada)
+        for n in range(self.N - 1, 0, -1):  
             y_anterior = self.camadas[n - 1].y
             neur = self.camadas[n].neuronios
             d_anterior = self.camadas[n - 1].ds
 
-            # delta^(n-1) para cada i da camada anterior
             delta_anterior = [
                 sum(neur[j].w[i] * delta[j] * neur[j].dy for j in range(len(neur)))
                 for i in range(d_anterior)
@@ -154,16 +180,21 @@ class RedeNeuronal:
 
     def adaptar(self, x, y, alpha):
         """
-        1. adaptar(x, y, alpha):
-            2. y^N = propagar(x)
-            3. delta^N = delta_saida(y^N, y)
-            4. retropropagar(delta^N, alpha)
-            5. epsilon = sum(delta_k^N²) / K
-            6. return epsilon
-
-        x     — vector de treino de entrada
-        y     — vector de treino de saída
-        alpha — taxa de aprendizagem
+        𝒙 Vector de treino de entrada
+        𝒚 Vector de treino de saída
+        𝒚^𝑁 Vector de saída gerado pela rede
+        𝜹^𝑁 Vector de variação de erro de saída
+        𝜀 Erro médio de saída da rede
+        𝐾 Dimensão do vector de perda
+        𝛼 Taxa de aprendizagem
+        
+        1. adaptar(𝒙, 𝒚, 𝛼):
+            2. 𝒚^𝑁 = propagar(𝒙)
+            3. 𝜹^𝑁 = delta_saída(𝒚^𝑁, 𝒚)
+            4. retropropagar(𝜹^𝑁, 𝛼)
+            5. K = |𝜹^𝑁|
+            6. 𝜀 = 1/𝐾 σ𝐾𝑘=1(𝛿𝑘^𝑁)^𝟐
+            7. return 𝜀
         """
         yN = self.propagar(x)
         deltaN = self.delta_saida(yN, y)
@@ -174,20 +205,20 @@ class RedeNeuronal:
 
     def treinar(self, X, Y, nepocas, epsilon_max, alpha):
         """
-        1. treinar(X, Y, nepocas, epsilon_max, alpha):
-            2. for nepocas:
-                3. epsilon = 0
-                4. for x in X, y in Y:
-                    5. epsilon_x = adaptar(x, y, alpha)
-                    6. epsilon = max(epsilon, epsilon_x)
-                7. if epsilon <= epsilon_max:
-                    8. break
-
-        X          — conjunto de entradas
-        Y          — conjunto de saídas alvo
-        nepocas    — número máximo de épocas
-        epsilon_max — erro máximo para paragem antecipada
-        alpha      — taxa de aprendizagem
+        𝑿 Conjunto de entradas 𝒙
+        𝒀 Conjunto de saídas 𝒚
+        𝑛é𝑝𝑜𝑐𝑎𝑠 Número de épocas de treino
+        𝜀𝑚𝑎𝑥 Erro máximo
+        𝛼 Taxa de aprendizagem
+        
+        1. treinar(𝑿, 𝒀, 𝑛é𝑝𝑜𝑐𝑎𝑠, 𝜀𝑚𝑎𝑥, 𝛼):
+            2. for 𝑛é𝑝𝑜𝑐𝑎𝑠:
+            3. 𝜀 = 0                        𝜀 - erro de treino por época
+            4. for 𝒙 ∈ 𝑿, 𝒚 ∈ 𝒀:
+                5. 𝜀𝒙 = adaptar(𝒙, 𝒚, 𝛼)        𝜀𝒙 - erro de treino por entrada 𝒙
+                6. 𝜀 = max(𝜀, 𝜀𝒙):
+            7. if 𝜀 ≤ 𝜀𝑚𝑎𝑥:
+                8. break
         """
         for epoca in range(nepocas):
             epsilon = 0
@@ -198,3 +229,14 @@ class RedeNeuronal:
                 print(f"Convergiu na época {epoca + 1} com erro {epsilon:.6f}")
                 break
         return epsilon
+             
+    # Apenas para efeitos de teste, para definir pesos e pendor interno da rede
+    def definir_pesos(self, pesos):
+        """
+        pesos: lista de (W, b) por camada densa, por ordem
+        """
+        camadas_densas = [c for c in self.camadas if isinstance(c, CamadaDensa)]
+        for camada, (W, b) in zip(camadas_densas, pesos):
+            for neuronio, w_linha, bi in zip(camada.neuronios, W, b):
+                neuronio.w = w_linha
+                neuronio.b = bi

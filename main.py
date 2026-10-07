@@ -1,4 +1,4 @@
-import math
+from FuncaoActivacao import Tanh
 from RedeNeuronal import RedeNeuronal
 
 ###################################################################################
@@ -13,12 +13,13 @@ from RedeNeuronal import RedeNeuronal
 # A rede [9, 3, 1] tem 9 entradas, 3 neuronios escondidos e 1 neuronio de saída.
 # Função de activação: tanh — admite valores negativos, adequada para codificação
 # bipolar, e é diferenciável (necessário para retropropagação).
+#
+# Fontes:
+#   MORGADO, Luis; Redes Neuronais Artificiais - Parte 3.pdf, ISEL 2026
 ###################################################################################
 
-def tanh(h):
-    return math.tanh(h)
 
-# Dados de treino — 7 imagens 3x3 codificadas como vector de 9 valores
+# Dados de treino: 7 imagens 3x3 codificadas como vector de 9 valores
 X = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0],  # vazia       → 0
     [1, 0, 0, 1, 0, 0, 1, 0, 0],  # coluna 1    → 1
@@ -30,10 +31,10 @@ X = [
 ]
 Y = [[0], [1], [1], [1], [0], [0], [0]]
 
-# Rede [9, 3, 1] com tanh — igual ao exemplo dos slides
-rede = RedeNeuronal([9, 3, 1], tanh)
+# Rede [9, 3, 1] com tanh
+rede = RedeNeuronal([9, 3, 1], Tanh())
 
-# Parâmetros de treino dos slides:
+# Parâmetros de treino:
 # alpha=0.2, épocas=1000, erro_max=0.05
 rede.treinar(X, Y, nepocas=1000, epsilon_max=0.05, alpha=0.2)
 

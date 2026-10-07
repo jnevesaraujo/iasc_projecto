@@ -17,21 +17,34 @@ from Neuronio import Neuronio
 #   y^n = phi^n(h^n)         (saída da camada, entrada da camada seguinte)
 #
 # __init__(de, ds, phi)
-#   de       — dimensão de entrada: nº de ligações por neuronio (= ds da camada anterior).
-#   ds       — dimensão de saída: nº de neuronios da camada (largura da camada).
-#   phi      — função de activação partilhada por todos os neuronios.
+#   de        — dimensão de entrada: nº de ligações por neuronio (= ds da camada anterior).
+#   ds        — dimensão de saída: nº de neuronios da camada (largura da camada).
+#   phi       — instância de FuncaoActivacao, partilhada por todos os neuronios.
 #   neuronios — lista de ds objectos Neuronio, cada um inicializado com (de, phi).
+#   y         — vector de saída actual da camada, inicializado a zeros (dimensão ds).
+#               Guardado em memória após cada propagar para ser acessível durante
+#               a retropropagação — a camada seguinte precisa de y^(n-1) para
+#               calcular as correcções dos seus pesos (regra delta).
 #
 # y()
 #   Devolve o vector de saída actual da camada — lista dos valores y de cada neuronio.
 #
 # propagar(x)
 #   Invoca propagar(x) em cada neuronio — cada um calcula h = w·x + b e y = phi(h).
+#   Guarda o resultado em self.y para ser consultado durante a retropropagação.
 #   Retorna o vector y de dimensão ds, que se torna x^(n+1) da camada seguinte.
+#
+# adaptar(delta, y_anterior, alpha)
+#   Delega a actualização de pesos e pendor a cada neuronio individualmente,
+#   passando o componente de erro delta_j que lhe corresponde.
+#   delta     — vector de erros da camada actual (um valor por neuronio).
+#   y_anterior — vector de saída da camada anterior (entradas desta camada).
+#   alpha     — taxa de aprendizagem.
 #
 # Fontes:
 #   MORGADO, Luis; Redes Neuronais Artificiais - Parte 1.pdf, ISEL 2026
 #   MORGADO, Luis; Redes Neuronais Artificiais - Parte 2.pdf, ISEL 2026
+#   MORGADO, Luis; Redes Neuronais Artificiais - Parte 3.pdf, ISEL 2026
 ###################################################################################
 
 class CamadaDensa:
@@ -48,12 +61,12 @@ class CamadaDensa:
         self.phi = phi
         self.neuronios = [Neuronio(de, phi) for _ in range(ds)]
 
-   # def y(self):
+    def y(self):
         """
         𝒚:
             2. return [𝑛𝑒𝑢𝑟𝑜𝑛𝑖𝑜.𝑦 for 𝑛𝑒𝑢𝑟𝑜𝑛𝑖𝑜 in 𝑛𝑒𝑢𝑟𝑜𝑛𝑖𝑜𝑠]
         """
-        #return [neuronio.y for neuronio in self.neuronios]
+        return [neuronio.y for neuronio in self.neuronios]
 
     def propagar(self, x):
         """
@@ -64,6 +77,7 @@ class CamadaDensa:
             3. return 𝒚
         """
         y = [neuronio.propagar(x) for neuronio in self.neuronios]
+        self.y = y
         return y
     
     def adaptar(self, delta, y_anterior, alpha):
