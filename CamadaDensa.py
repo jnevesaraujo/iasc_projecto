@@ -80,13 +80,17 @@ class CamadaDensa:
         self.y = y
         return y
     
-    def adaptar(self, delta, y_anterior, alpha):
+    def adaptar(self, delta, y_anterior, alpha, beta):
         """
-        1. adaptar(𝛿, 𝒚^𝑛−1, 𝛼):
-            2. Δ𝒘= −𝛼𝑦′𝛿 ∙ 𝒚^𝑛−1 Variação dos pesos
-            3. 𝒘 = 𝒘 + Δ𝒘 Actualização dos pesos
-            4. Δ𝑏= −𝛼𝑦′𝛿 Variação do pendor
-            5. 𝑏 = 𝑏 + Δ𝑏 Actualização do pendor
+        𝜹^𝑛    Vector de erro de saída da camada 𝑛
+        𝛿𝑗^𝑛   Componente 𝑗 do vector de erro de saída da camada 𝑛
+        𝒚^𝑛−1  Vector de saída da camada anterior 𝑛 − 1
+        𝛼      Taxa de aprendizagem
+        𝛽      Factor de momento
+        
+        1. adaptar(𝜹^𝑛, 𝒚^𝑛−1, 𝛼, 𝛽):
+            2. for 𝑗 = 1 to 𝑑𝑠:
+            3. 𝑛𝑒𝑢𝑟𝑜𝑛𝑖𝑜𝑠[𝑗]. 𝑎𝑑𝑎𝑝𝑡𝑎𝑟(𝛿𝑗^𝑛, 𝒚^𝑛−1, 𝛼, 𝛽)
         """
         for neuronio, delta_j in zip(self.neuronios, delta):
-            neuronio.adaptar(delta_j, y_anterior, alpha)
+            neuronio.adaptar(delta_j, y_anterior, alpha, beta)

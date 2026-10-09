@@ -62,15 +62,19 @@ class Neuronio:
             3. 𝜑: 𝑅 → 𝑅                 Função de activação
             4. 𝒘 = random(𝑑, −1, 1)     Vector de pesos das ligações de entrada
             5. 𝑏 = random(−1, 1)        Pendor interno do neurónio
-            6. ℎ = 0                    Soma da activação das entradas
-            7. 𝑦 = 0                    Saída do neurónio
-            8. y' = 0                   Derivada da saída do neurónio
+            6. Δ𝒘= [0 for 𝑑]            Vector de variação dos pesos
+            7. Δ𝑏= 0                    Variação do pendor
+            8. ℎ = 0                    Soma da activação das entradas
+            9. 𝑦 = 0                    Saída do neurónio
+            10. y' = 0                   Derivada da saída do neurónio
         """
 
         self.d = d
         self.phi = phi
         self.w =  [random() * 2 - 1 for _ in range(d)]      # random(d, -1, 1)
         self.b = random() * 2 - 1                           # random(-1, 1)
+        self.delta_w = [0 for _ in range(d)]                # Δw inicializado a 0
+        self.delta_b = 0                                    # Δb inicializado a 0
         self.h = 0
         self.y = 0
         self.dy = 0                                         # y' inicializado a 0
@@ -91,18 +95,25 @@ class Neuronio:
 #        self.dy = (self.phi(self.h + e) - self.phi(self.h - e)) / (2 * e)   # 𝑑𝜑(ℎ)/𝑑ℎ ≅ 𝜑(ℎ + ε) - 𝜑(ℎ - ε) / (2ε)
         return self.y
     
-    def adaptar(self, delta, y_anterior, alpha):
+    def adaptar(self, delta, y_anterior, alpha, beta):
         """
-        1. adaptar(𝛿, 𝒚^𝑛−1, 𝛼):
-            2. Δ𝒘= −𝛼𝑦′𝛿 ∙ 𝒚^𝑛−1    Variação dos pesos
-            3. 𝒘 = 𝒘 + Δ𝒘          Actualização dos pesos
-            4. Δ𝑏= −𝛼𝑦′𝛿            Variação do pendor
-            5. 𝑏 = 𝑏 + Δ𝑏           Actualização do pendor
-
         𝛿 Componente de propagação do erro de saída do neurónio
         𝒚^𝑛−1 Vector de saída da camada anterior 𝑛−1
         𝛼 Taxa de aprendizagem
+        𝛽 Factor de momento
+        
+        1. adaptar(𝛿, 𝒚^𝑛−1, 𝛼, 𝛽):
+            2. 𝑴𝑤 = 𝛽Δ𝒘                 Momento dos pesos
+            3. Δ𝒘= −𝛼𝑦′𝛿 ∙ 𝒚^𝑛−1 + 𝑴𝑤   Variação dos pesos
+            4. 𝒘 = 𝒘 + Δ𝒘               Actualização dos pesos
+            5. 𝑀𝑏 = 𝛽Δ𝑏                  Momento do pendor
+            6. Δ𝑏= −𝛼𝑦′𝛿 + 𝑀𝑏            Variação do pendor
+            7. 𝑏 = 𝑏 + Δ𝑏                Actualização do pendor
+
         """
-        dw = [-alpha * self.dy * delta * yi for yi in y_anterior]
-        self.w = [wi + dwi for wi, dwi in zip(self.w, dw)]
-        self.b = self.b + (-alpha * self.dy * delta)
+        momento_w = [beta * dwi for dwi in self.delta_w]
+        self.delta_w = [-alpha * self.dy * delta * yi + mw for yi, mw in zip(y_anterior, momento_w)]
+        self.w = [wi + dwi for wi, dwi in zip(self.w, self.delta_w)]
+        momento_b = beta * self.delta_b
+        self.delta_b = -alpha * self.dy * delta + momento_b
+        self.b += self.delta_b

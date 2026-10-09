@@ -36,7 +36,7 @@ rede = RedeNeuronal([9, 3, 1], Tanh())
 
 # Parâmetros de treino:
 # alpha=0.2, épocas=1000, erro_max=0.05
-rede.treinar(X, Y, nepocas=1000, epsilon_max=0.05, alpha=0.2)
+rede.treinar(X, Y, nepocas=1000, epsilon_max=0.05, alpha=0.2, beta=0.8)
 
 # Verificar resultados
 print("\nEntrada | Alvo | Obtido")

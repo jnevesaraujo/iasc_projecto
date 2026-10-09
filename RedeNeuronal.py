@@ -146,14 +146,15 @@ class RedeNeuronal:
         """
         return [ykN - yk for ykN, yk in zip(yN, y)]
 
-    def retropropagar(self, deltaN, alpha):
+    def retropropagar(self, deltaN, alpha, beta):
         """
-        𝜹^𝑁 Vector de variação de erro de saída da rede
-        𝜹^𝑛 Vector de variação de erro de saída para cada camada n
-        𝛿𝑗 Componente j do vector de variação de erro de saída para cada camada
-        𝛼 Taxa de aprendizagem
+        𝜹^𝑁    Vector de variação de erro de saída da rede
+        𝜹^𝑛    Vector de variação de erro de saída para cada camada n
+        𝛿𝑗      Componente j do vector de variação de erro de saída para cada camada
+        𝛼      Taxa de aprendizagem
+        𝛽      Factor de momento
         
-        1. retropropagar(𝜹^𝑁, 𝛼):
+        1. retropropagar(𝜹^𝑁, 𝛼, 𝛽):
             2. 𝜹^𝑛 = 𝜹^𝑁
             3. for 𝑛 = 𝑁 to 2 step − 1:             Camada de entrada apenas mantém entradas
                 4. 𝒚^𝑛−1 = 𝑐𝑎𝑚𝑎𝑑𝑎𝑠 [𝑛 − 1]. 𝒚
@@ -161,7 +162,7 @@ class RedeNeuronal:
                 6. 𝑑^𝑛 = 𝑐𝑎𝑚𝑎𝑑𝑎𝑠 [𝑛]. 𝑑𝑠             Dimensão da camada n
                 7. 𝑛𝑒𝑢𝑟𝑛 = 𝑐𝑎𝑚𝑎𝑑𝑎𝑠 [𝑛]. 𝑛𝑒𝑢𝑟𝑜𝑛𝑖𝑜𝑠     Neurónios da camada n
                 8. 𝜹^𝑛−1 = [σ𝑗=1 𝑑^𝑛 𝑛𝑒𝑢𝑟𝑛 𝑗 . 𝑤𝑖 ∗ 𝛿𝑗^𝑛 ∗ 𝑛𝑒𝑢𝑟𝑛 𝑗 . 𝑦′ for 𝑖 = 1 to 𝑑^𝑛−1]
-                9. 𝑐𝑎𝑚𝑎𝑑𝑎𝑠[𝑛]. adaptar(𝜹^𝑛, 𝒚^𝑛−1, 𝛼)
+                9. 𝑐𝑎𝑚𝑎𝑑𝑎𝑠[𝑛]. adaptar(𝜹^𝑛, 𝒚^𝑛−1, 𝛼, 𝛽)
                 10. 𝜹^𝑛 = 𝜹^𝑛−1
         """
         delta = deltaN
@@ -175,10 +176,10 @@ class RedeNeuronal:
                 for i in range(d_anterior)
             ]
 
-            self.camadas[n].adaptar(delta, y_anterior, alpha)
+            self.camadas[n].adaptar(delta, y_anterior, alpha, beta)
             delta = delta_anterior
 
-    def adaptar(self, x, y, alpha):
+    def adaptar(self, x, y, alpha, beta):
         """
         𝒙 Vector de treino de entrada
         𝒚 Vector de treino de saída
@@ -187,35 +188,37 @@ class RedeNeuronal:
         𝜀 Erro médio de saída da rede
         𝐾 Dimensão do vector de perda
         𝛼 Taxa de aprendizagem
+        𝛽 Factor de momentoo
         
-        1. adaptar(𝒙, 𝒚, 𝛼):
+        1. adaptar(𝒙, 𝒚, 𝛼, 𝛽):
             2. 𝒚^𝑁 = propagar(𝒙)
             3. 𝜹^𝑁 = delta_saída(𝒚^𝑁, 𝒚)
-            4. retropropagar(𝜹^𝑁, 𝛼)
+            4. retropropagar(𝜹^𝑁, 𝛼, 𝛽)
             5. K = |𝜹^𝑁|
             6. 𝜀 = 1/𝐾 σ𝐾𝑘=1(𝛿𝑘^𝑁)^𝟐
             7. return 𝜀
         """
         yN = self.propagar(x)
         deltaN = self.delta_saida(yN, y)
-        self.retropropagar(deltaN, alpha)
+        self.retropropagar(deltaN, alpha, beta)
         K = len(deltaN)
         epsilon = sum(dk ** 2 for dk in deltaN) / K
         return epsilon
 
-    def treinar(self, X, Y, nepocas, epsilon_max, alpha):
+    def treinar(self, X, Y, nepocas, epsilon_max, alpha, beta):
         """
         𝑿 Conjunto de entradas 𝒙
         𝒀 Conjunto de saídas 𝒚
         𝑛é𝑝𝑜𝑐𝑎𝑠 Número de épocas de treino
         𝜀𝑚𝑎𝑥 Erro máximo
         𝛼 Taxa de aprendizagem
-        
-        1. treinar(𝑿, 𝒀, 𝑛é𝑝𝑜𝑐𝑎𝑠, 𝜀𝑚𝑎𝑥, 𝛼):
+        𝛽 Factor de momento
+
+        1. treinar(𝑿, 𝒀, 𝑛é𝑝𝑜𝑐𝑎𝑠, 𝜀𝑚𝑎𝑥, 𝛼, 𝛽):
             2. for 𝑛é𝑝𝑜𝑐𝑎𝑠:
             3. 𝜀 = 0                        𝜀 - erro de treino por época
             4. for 𝒙 ∈ 𝑿, 𝒚 ∈ 𝒀:
-                5. 𝜀𝒙 = adaptar(𝒙, 𝒚, 𝛼)        𝜀𝒙 - erro de treino por entrada 𝒙
+                5. 𝜀𝒙 = adaptar(𝒙, 𝒚, 𝛼, 𝛽)        𝜀𝒙 - erro de treino por entrada 𝒙
                 6. 𝜀 = max(𝜀, 𝜀𝒙):
             7. if 𝜀 ≤ 𝜀𝑚𝑎𝑥:
                 8. break
@@ -223,7 +226,7 @@ class RedeNeuronal:
         for epoca in range(nepocas):
             epsilon = 0
             for x, y in zip(X, Y):
-                epsilon_x = self.adaptar(x, y, alpha)
+                epsilon_x = self.adaptar(x, y, alpha, beta)
                 epsilon = max(epsilon, epsilon_x)
             if epsilon <= epsilon_max:
                 print(f"Convergiu na época {epoca + 1} com erro {epsilon:.6f}")
